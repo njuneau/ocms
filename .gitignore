@@ -1,0 +1,7 @@
+.classpath
+.settings
+.project
+target/
+.flattened-pom.xml
+*.swp
+.vagrant

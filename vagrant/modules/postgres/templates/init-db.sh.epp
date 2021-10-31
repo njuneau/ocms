@@ -1,0 +1,34 @@
+<%- | | -%>#!/bin/bash
+set -e
+
+TEST_ROLE="$(psql -Atc "SELECT rolname FROM pg_roles WHERE rolname = 'test';")"
+if [[ -z "${TEST_ROLE}" ]]; then
+  psql -c "CREATE ROLE test WITH LOGIN PASSWORD 'test';"
+fi
+
+TEST_DATABASE="$(psql -Atc "SELECT datname FROM pg_database WHERE datname = 'test';")"
+if [[ -z "${TEST_DATABASE}" ]]; then
+  psql -c "CREATE DATABASE test OWNER test LOCALE 'en_US.UTF-8' ENCODING 'UTF8';"
+  psql -c "GRANT CONNECT ON DATABASE test TO test;"
+  psql -d 'test' -f - <<EOF
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO test;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES to test;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON ROUTINES to test;
+EOF
+fi
+
+TEST_TABLE="$(psql -d 'test' -Atc "SELECT tablename FROM pg_tables WHERE tablename = 'fridge';")"
+if [[ -z "${TEST_TABLE}" ]]; then
+  psql -d 'test' -f - <<EOF
+CREATE TABLE fridge(
+  id            uuid  PRIMARY KEY DEFAULT gen_random_uuid(),
+  name          VARCHAR(255) NOT NULL,
+  date_entered  TIMESTAMP WITH TIME ZONE NOT NULL,
+  date_expiry   TIMESTAMP WITH TIME ZONE NOT NULL
+);
+
+CREATE INDEX fridge_name_idx ON fridge (name);
+CREATE INDEX fridge_date_entered_idx ON fridge (date_entered);
+CREATE INDEX fridge_date_expiry_idx ON fridge (date_expiry);
+EOF
+fi

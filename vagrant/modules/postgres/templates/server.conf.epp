@@ -1,0 +1,2 @@
+<%- | String $server_ip
+| -%>listen_addresses = '<%= $server_ip %>'
