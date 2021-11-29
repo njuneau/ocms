@@ -15,6 +15,7 @@ package ca.njuneau.ocms.model;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.UUID;
 
 import org.jdbi.v3.sqlobject.config.RegisterRowMapper;
 import org.jdbi.v3.sqlobject.statement.SqlQuery;
@@ -32,7 +33,11 @@ public interface FridgeDAO {
   @RegisterRowMapper(FridgeRowMapper.class)
   public List<FridgeRow> getFridgeRows();
 
-  @SqlUpdate("INSERT INTO fridge (name, date_entered, date_expiry) VALUES (?, ?, ?)")
-  public void insertFridgeRow(final String name, final OffsetDateTime dateEntered, final OffsetDateTime dateExpiry);
+  @SqlQuery("SELECT * FROM fridge WHERE id = ?")
+  @RegisterRowMapper(FridgeRowMapper.class)
+  public FridgeRow getFrideRow(final UUID id);
+
+  @SqlUpdate("INSERT INTO fridge (id, name, date_expiry) VALUES (?, ?, ?)")
+  public void insertFridgeRow(final UUID id, final String name, final OffsetDateTime dateExpiry);
 
 }

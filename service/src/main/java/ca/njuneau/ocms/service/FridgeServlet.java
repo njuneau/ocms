@@ -14,25 +14,31 @@
 package ca.njuneau.ocms.service;
 
 import java.io.IOException;
+import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
-import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
-import java.util.regex.Pattern;
+import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import ca.njuneau.ocms.model.FridgeDAO;
 import ca.njuneau.ocms.model.FridgeRow;
+import ca.njuneau.ocms.service.form.FridgeInsertForm;
+import ca.njuneau.ocms.service.handling.Handle;
+import ca.njuneau.ocms.service.handling.Handler;
 
 import jakarta.json.JsonArrayBuilder;
 import jakarta.json.JsonBuilderFactory;
 import jakarta.json.JsonObject;
+import jakarta.json.JsonObjectBuilder;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
@@ -48,27 +54,36 @@ public class FridgeServlet extends HttpServlet {
   private static final Logger LOG = LoggerFactory.getLogger(FridgeServlet.class);
 
   private static final String CONTENT_TYPE = "application/json";
-  private static final Pattern PATH_PATTERN_ROOT = Pattern.compile("^/$");
+  private static final DateTimeFormatter RESPONSE_DATE_TIME_FORMATTER = DateTimeFormatter.ISO_OFFSET_DATE_TIME;
 
-  private static final String HTTP_METHOD_GET = "GET";
-  private static final String HTTP_METHOD_POST = "POST";
-
-  private final Clock clock;
   private final FridgeDAO fridgeDao;
   private final Validator validator;
   private final JsonBuilderFactory jsonBuilderFactory;
+  private final List<Handler> handlers;
 
   /**
-   * @param clock The clock to use when obtaining time
    * @param fridgeDao The fridge dao, connected to JDBI
    * @param validator The Jakarta bean validator
    * @param jsonBuilderFactory The Jakarta JSON builder factory
    */
-  public FridgeServlet(final Clock clock, final FridgeDAO fridgeDao, final Validator validator, final JsonBuilderFactory jsonBuilderFactory) {
-    this.clock = clock;
+  public FridgeServlet(final FridgeDAO fridgeDao, final Validator validator, final JsonBuilderFactory jsonBuilderFactory) {
     this.fridgeDao = fridgeDao;
     this.validator = validator;
     this.jsonBuilderFactory = jsonBuilderFactory;
+
+    // Introspect servlet for handler methods
+    this.handlers = new ArrayList<Handler>();
+    for (final Method declaredMethod : getClass().getDeclaredMethods()) {
+      for (final Handle handle : declaredMethod.getDeclaredAnnotationsByType(Handle.class)) {
+        try {
+          handlers.add(new Handler(handle.path(), handle.method(), declaredMethod));
+        } catch (final IllegalArgumentException | NullPointerException e) {
+          LOG.error("Invalid handler mapping on []", declaredMethod, e);
+        }
+      }
+    }
+    Collections.sort(handlers);
+    Collections.reverse(handlers);
   }
 
   @Override
@@ -76,23 +91,25 @@ public class FridgeServlet extends HttpServlet {
     response.setContentType(CONTENT_TYPE);
     response.setCharacterEncoding(StandardCharsets.UTF_8.name());
 
-    // Very primitive regex-based dispatcher
+    // Very primitive dispatcher
     final String path = request.getPathInfo();
-    if (PATH_PATTERN_ROOT.matcher(path).matches()) {
-      switch (request.getMethod()) {
-        case HTTP_METHOD_GET:
-          handleGetRoot(request, response);
-        break;
-        case HTTP_METHOD_POST:
-          handlePostRoot(request, response);
-        break;
-        default:
-          handleNotFound(request, response);
+    final String method = request.getMethod();
+    boolean handled = false;
+    for (final Handler handler : handlers) {
+      if (path.startsWith(handler.getPath()) && method.equals(handler.getMethod())) {
+        try {
+          handler.getHandler().invoke(this, request, response);
+        } catch (final Exception e) {
+          LOG.error("Handler invocation failure", e);
+          handleInternalError(response);
+        }
+        handled = true;
         break;
       }
-    } else {
-      // Unknown path
-      handleNotFound(request, response);
+    }
+
+    if (!handled) {
+      handleNotFound(response);
     }
   }
 
@@ -102,17 +119,17 @@ public class FridgeServlet extends HttpServlet {
    * @param request The servlet request
    * @param response The servlet response
    *
-   * @throws ServletException
    * @throws IOException
    */
-  private void handleGetRoot(final HttpServletRequest request, final HttpServletResponse response) throws ServletException, IOException {
+  @Handle(path = "/", method = "GET")
+  private void handleGetRoot(final HttpServletRequest request, final HttpServletResponse response) throws IOException {
     final List<FridgeRow> rows = fridgeDao.getFridgeRows();
     final JsonArrayBuilder arrayBuilder = jsonBuilderFactory.createArrayBuilder();
     for (final FridgeRow row : rows) {
-      arrayBuilder.add(row.toJson(jsonBuilderFactory.createObjectBuilder(), DateTimeFormatter.ISO_OFFSET_DATE_TIME));
+      arrayBuilder.add(row.toJson(jsonBuilderFactory.createObjectBuilder(), RESPONSE_DATE_TIME_FORMATTER));
     }
     response.setStatus(200);
-    response.getOutputStream().println(arrayBuilder.build().toString());
+    response.getOutputStream().print(arrayBuilder.build().toString());
   }
 
   /**
@@ -120,47 +137,35 @@ public class FridgeServlet extends HttpServlet {
    *
    * @param request The servlet request
    * @param response The servlet response
-   *
-   * @throws ServletException
-   * @throws IOException
    */
-  private void handlePostRoot(final HttpServletRequest request, final HttpServletResponse response) throws ServletException, IOException {
+  @Handle(path = "/", method = "POST")
+  private void handlePostRoot(final HttpServletRequest request, final HttpServletResponse response) throws IOException {
     final var form = new FridgeInsertForm(request);
     final Set<ConstraintViolation<FridgeInsertForm>> formErrors = validator.validate(form);
 
     if (formErrors.isEmpty()) {
-      // Form validated successfully.
+      // Form validated successfully. Insert in the database.
       try {
         final OffsetDateTime dateExpiry = LocalDateTime
             .parse(form.getDateExpiry(), DateTimeFormatter.ISO_LOCAL_DATE_TIME)
-            .atZone(clock.getZone())
+            .atZone(ZoneOffset.UTC)
             .toOffsetDateTime();
-        final OffsetDateTime now = OffsetDateTime.ofInstant(clock.instant(), clock.getZone());
-        fridgeDao.insertFridgeRow(form.getName(), now, dateExpiry);
+        final UUID rowId = UUID.randomUUID();
+        fridgeDao.insertFridgeRow(rowId, form.getName(), dateExpiry);
+
+        final FridgeRow insertedRow = fridgeDao.getFrideRow(rowId);
         response.setStatus(201);
-      } catch (final DateTimeParseException e) {
-        // This can happen because I'm too lazy with date time validation in the form
-        LOG.warn("Invalid date time parsed. Fix your validator!", e);
-        response.setStatus(400);
-        response.getOutputStream().println(
-          jsonBuilderFactory.createObjectBuilder()
-            .add("error", 400)
-            .add("message", "Invalid expiry date")
-            .build()
-            .toString()
-        );
+        response.getOutputStream().print(
+            insertedRow.toJson(jsonBuilderFactory.createObjectBuilder(), RESPONSE_DATE_TIME_FORMATTER).toString());
       } catch (final Exception e) {
         LOG.error("Error while inserting in the DB", e);
         response.setStatus(500);
-        response.getOutputStream().println(jsonBuilderFactory.createObjectBuilder()
-            .add("error", 500)
-            .add("message", "Could not insert in the DB")
-            .build().toString()
-        );
+        response.getOutputStream().print(
+            createJsonErrorBuilder(500, "Could not insert in the DB").build().toString());
       }
 
     } else {
-      // Form contains errors. Return 400 bad request
+      // Form contains errors. Return 400 bad request with constraint violation messages
       final JsonArrayBuilder errorMessages = jsonBuilderFactory.createArrayBuilder();
       for (final ConstraintViolation<FridgeInsertForm> formError : formErrors) {
         errorMessages.add(
@@ -170,33 +175,43 @@ public class FridgeServlet extends HttpServlet {
           )
         );
       }
-      final JsonObject jsonResponse = jsonBuilderFactory.createObjectBuilder()
-          .add("error", 400)
-          .add("message", "Form contains errors")
+      final JsonObject jsonResponse = createJsonErrorBuilder(400, "Form contains errors")
           .add("validationMessages", errorMessages)
           .build();
       response.setStatus(400);
-      response.getOutputStream().println(jsonResponse.toString());
+      response.getOutputStream().print(jsonResponse.toString());
     }
+  }
+
+  /**
+   * Answers with a "internal server error"
+   *
+   * @param response The servlet response
+   */
+  private void handleInternalError(final HttpServletResponse response) throws IOException {
+    response.setStatus(500);
+    response.getOutputStream().print(createJsonErrorBuilder(500, "Internal server error").build().toString());
   }
 
   /**
    * Answers with a "not found" error
    *
-   * @param request The servlet request
    * @param response The servlet response
-   *
-   * @throws ServletException
-   * @throws IOException
    */
-  private void handleNotFound(final HttpServletRequest request, final HttpServletResponse response) throws ServletException, IOException {
-    final JsonObject jsonResponse = jsonBuilderFactory.createObjectBuilder()
-        .add("error", 404)
-        .add("message", "Not found")
-        .build();
-
-    response.getOutputStream().println(jsonResponse.toString());
+  private void handleNotFound(final HttpServletResponse response) throws IOException {
     response.setStatus(404);
+    response.getOutputStream().print(createJsonErrorBuilder(404, "Not found").build().toString());
+  }
+
+  /**
+   * @param errorCode The error code
+   * @param message The error message
+   * @return The base JSON object builder to use for error responses
+   */
+  private JsonObjectBuilder createJsonErrorBuilder(final int errorCode, final String message) {
+    return jsonBuilderFactory.createObjectBuilder()
+        .add("error", errorCode)
+        .add("message", message);
   }
 
 }

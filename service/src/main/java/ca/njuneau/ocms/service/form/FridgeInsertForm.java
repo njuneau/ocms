@@ -11,10 +11,11 @@
 // You should have received a copy of the GNU General Public License along with OCMS.  If not, see
 // <https://www.gnu.org/licenses/>.
 
-package ca.njuneau.ocms.service;
+package ca.njuneau.ocms.service.form;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 
 /**
@@ -32,8 +33,8 @@ public class FridgeInsertForm {
   /**
    * Form parameter "date-expiry" with primitive date and time format
    */
-  @NotBlank
-  @Pattern(regexp = "[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}")
+  @NotNull
+  @StringLocalDateTime
   private final String dateExpiry;
 
   public FridgeInsertForm(final HttpServletRequest request) {

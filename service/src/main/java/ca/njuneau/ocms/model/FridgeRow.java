@@ -83,7 +83,5 @@ public class FridgeRow {
         .add("dateEntered", dateTimeFormatter.format(dateEntered))
         .add("dateExpiry", dateTimeFormatter.format(dateExpiry))
         .build();
-
   }
-
 }

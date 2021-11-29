@@ -129,7 +129,7 @@ public class Main {
     // Setup the servlet
     final var servletContext = new ServletContextHandler();
     servletContext.setContextPath("/");
-    final var servletHolder = new ServletHolder(new FridgeServlet(clock, fridgeDao, validator, jsonBuilderFactory));
+    final var servletHolder = new ServletHolder(new FridgeServlet(fridgeDao, validator, jsonBuilderFactory));
     servletContext.addServlet(servletHolder, "/*");
     // Disable default error handler
     final var emptyErrorHandler = new ErrorHandler() {
