@@ -14,9 +14,9 @@ import java.lang.annotation.Target;
 public @interface Handle {
 
   /**
-   * @return The path the request should start with
+   * @return The path pattern the request should have
    */
-  public String path();
+  public String pathPattern();
 
   /**
    * @return The HTTP method the handler responds to

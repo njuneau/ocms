@@ -21,10 +21,11 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -76,14 +77,12 @@ public class FridgeServlet extends HttpServlet {
     for (final Method declaredMethod : getClass().getDeclaredMethods()) {
       for (final Handle handle : declaredMethod.getDeclaredAnnotationsByType(Handle.class)) {
         try {
-          handlers.add(new Handler(handle.path(), handle.method(), declaredMethod));
+          handlers.add(new Handler(Pattern.compile(handle.pathPattern()), handle.method(), declaredMethod));
         } catch (final IllegalArgumentException | NullPointerException e) {
           LOG.error("Invalid handler mapping on []", declaredMethod, e);
         }
       }
     }
-    Collections.sort(handlers);
-    Collections.reverse(handlers);
   }
 
   @Override
@@ -96,9 +95,16 @@ public class FridgeServlet extends HttpServlet {
     final String method = request.getMethod();
     boolean handled = false;
     for (final Handler handler : handlers) {
-      if (path.startsWith(handler.getPath()) && method.equals(handler.getMethod())) {
+      final Matcher pathMatcher = handler.getPathPattern().matcher(path);
+      if (method.equalsIgnoreCase(handler.getMethod()) && pathMatcher.matches()) {
         try {
-          handler.getHandler().invoke(this, request, response);
+          final Object[] handlerParams = new Object[handler.getHandlerParameterCount()];
+          handlerParams[handler.getHandlerParameterPositionRequest()] = request;
+          handlerParams[handler.getHandlerParameterPositionResponse()] = response;
+          if (handler.hasMatcherParameter()) {
+            handlerParams[handler.getHandlerParameterPositionMatcher()] = pathMatcher;
+          }
+          handler.getHandler().invoke(this, handlerParams);
         } catch (final Exception e) {
           LOG.error("Handler invocation failure", e);
           handleInternalError(response);
@@ -121,7 +127,7 @@ public class FridgeServlet extends HttpServlet {
    *
    * @throws IOException
    */
-  @Handle(path = "/", method = "GET")
+  @Handle(pathPattern = "^/$", method = "GET")
   private void handleGetRoot(final HttpServletRequest request, final HttpServletResponse response) throws IOException {
     final List<FridgeRow> rows = fridgeDao.getFridgeRows();
     final JsonArrayBuilder arrayBuilder = jsonBuilderFactory.createArrayBuilder();
@@ -138,7 +144,7 @@ public class FridgeServlet extends HttpServlet {
    * @param request The servlet request
    * @param response The servlet response
    */
-  @Handle(path = "/", method = "POST")
+  @Handle(pathPattern = "^/$", method = "POST")
   private void handlePostRoot(final HttpServletRequest request, final HttpServletResponse response) throws IOException {
     final var form = new FridgeInsertForm(request);
     final Set<ConstraintViolation<FridgeInsertForm>> formErrors = validator.validate(form);
