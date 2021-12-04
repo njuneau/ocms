@@ -13,18 +13,18 @@
 
 package ca.njuneau.ocms.service;
 
-import java.lang.management.ManagementFactory;
 import java.time.Clock;
 import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.TimeZone;
 
-import javax.management.MBeanServer;
 import javax.servlet.DispatcherType;
 
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
+import org.eclipse.jetty.server.handler.HandlerCollection;
+import org.eclipse.jetty.server.handler.StatisticsHandler;
 import org.eclipse.jetty.servlet.FilterHolder;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.util.thread.QueuedThreadPool;
@@ -36,18 +36,13 @@ import org.slf4j.LoggerFactory;
 import ca.njuneau.ocms.model.FridgeDAO;
 import ca.njuneau.ocms.model.FridgeRowMapper;
 
-import com.codahale.metrics.MetricRegistry;
-import com.codahale.metrics.jmx.JmxReporter;
-import com.codahale.metrics.jvm.BufferPoolMetricSet;
-import com.codahale.metrics.jvm.ClassLoadingGaugeSet;
-import com.codahale.metrics.jvm.GarbageCollectorMetricSet;
-import com.codahale.metrics.jvm.JvmAttributeGaugeSet;
-import com.codahale.metrics.jvm.MemoryUsageGaugeSet;
-import com.codahale.metrics.jvm.ThreadStatesGaugeSet;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 
-import io.prometheus.client.dropwizard.DropwizardExports;
+import io.prometheus.client.exporter.MetricsServlet;
+import io.prometheus.client.hotspot.DefaultExports;
+import io.prometheus.client.jetty.JettyStatisticsCollector;
+import io.prometheus.client.jetty.QueuedThreadPoolStatisticsCollector;
 
 import jakarta.json.Json;
 import jakarta.json.JsonBuilderFactory;
@@ -79,19 +74,8 @@ public class Main {
     TimeZone.setDefault(TimeZone.getTimeZone(ZoneOffset.UTC.getId()));
     final Clock clock = Clock.systemUTC();
 
-    LOG.info("Initializing metrics registry");
-    final MBeanServer mBeanServer = ManagementFactory.getPlatformMBeanServer();
-    final var metricsRegistry = new MetricRegistry();
-    metricsRegistry.registerAll(new BufferPoolMetricSet(mBeanServer));
-    metricsRegistry.registerAll(new ClassLoadingGaugeSet());
-    metricsRegistry.registerAll(new GarbageCollectorMetricSet());
-    metricsRegistry.registerAll(new JvmAttributeGaugeSet());
-    metricsRegistry.registerAll(new MemoryUsageGaugeSet());
-    metricsRegistry.registerAll(new ThreadStatesGaugeSet());
-    final JmxReporter metricsReporter = JmxReporter.forRegistry(metricsRegistry).build();
-    metricsReporter.start();
-    final var prometheusExport = new DropwizardExports(metricsRegistry);
-    prometheusExport.register();
+    LOG.info("Initializing metrics");
+    DefaultExports.initialize();
 
     LOG.info("Creating database connection pool");
     final var hikariConfig = new HikariConfig();
@@ -118,31 +102,50 @@ public class Main {
         .getValidator();
 
     LOG.info("Launching HTTP server");
-    final var httpThreadPool = new QueuedThreadPool();
-    httpThreadPool.setName("server");
-    final var server = new Server(httpThreadPool);
-    final var connector = new ServerConnector(server);
-    connector.setPort(HTTP_PORT);
-    server.addConnector(connector);
+    final var jettyThreadPool = new QueuedThreadPool();
+    jettyThreadPool.setName("jetty");
+    final var jettyThreadPoolStatisctics =
+        new QueuedThreadPoolStatisticsCollector(jettyThreadPool, jettyThreadPool.getName());
+    jettyThreadPoolStatisctics.register();
 
-    // Setup the REST endpoint
+    final var jettyServer = new Server(jettyThreadPool);
+    final var jettyConnector = new ServerConnector(jettyServer);
+    jettyConnector.setPort(HTTP_PORT);
+    jettyServer.addConnector(jettyConnector);
+    final var jettyHandlers = new HandlerCollection();
+
+    // Setup the application endpoint
+    final var fridgeServletContext = new ServletContextHandler();
+    fridgeServletContext.setContextPath("/fridge/");
     final var fridgeApp = new FridgeApplication(fridgeDao, validator, jsonBuilderFactory);
-    final var servletContext = new ServletContextHandler();
-    servletContext.setContextPath("/");
     final var sparkFilter = new CustomSparkFilter(new SparkApplication[] {fridgeApp});
-    final var filterHolder = new FilterHolder(sparkFilter);
-    servletContext.addFilter(filterHolder, "/*", EnumSet.of(DispatcherType.REQUEST));
-    server.setHandler(servletContext);
+    final var sparkFilterHolder = new FilterHolder(sparkFilter);
+    fridgeServletContext.addFilter(sparkFilterHolder, "/*", EnumSet.of(DispatcherType.REQUEST));
+    jettyHandlers.addHandler(fridgeServletContext);
+
+    // Setup the metrics endpoint
+    final var metricsServletContext = new ServletContextHandler();
+    metricsServletContext.setContextPath("/metrics/");
+    metricsServletContext.addServlet(MetricsServlet.class, "/*");
+    jettyHandlers.addHandler(metricsServletContext);
+
+    jettyServer.setHandler(jettyHandlers);
+
+    // Setup the Jetty metrics
+    final var statisticsHandler = new StatisticsHandler();
+    statisticsHandler.setHandler(jettyServer.getHandler());
+    jettyServer.setHandler(statisticsHandler);
+    final var jettyStatisticsCollector = new JettyStatisticsCollector(statisticsHandler);
+    jettyStatisticsCollector.register();
+
 
     // Register JVM shutdown hook
     Runtime.getRuntime().addShutdownHook(new Thread(() -> {
       try {
         LOG.info("Stopping Jetty");
-        server.stop();
+        jettyServer.stop();
         LOG.info("Stopping Hikari");
         hikariDS.close();
-        LOG.info("Stopping metrics reporter");
-        metricsReporter.stop();
       } catch (final Exception e) {
         LOG.error("Clean shutdown failure", e);
       }
@@ -150,7 +153,7 @@ public class Main {
 
     // Start it up!
     try {
-      server.start();
+      jettyServer.start();
     } catch (final Exception e) {
       LOG.error("Error starting Jetty server", e);
     }

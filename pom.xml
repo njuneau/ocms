@@ -74,24 +74,6 @@
         <version>2.9.3</version>
       </dependency>
       <dependency>
-        <groupId>io.dropwizard.metrics</groupId>
-        <artifactId>metrics-core</artifactId>
-        <version>4.2.0</version>
-        <scope>compile</scope>
-      </dependency>
-      <dependency>
-        <groupId>io.dropwizard.metrics</groupId>
-        <artifactId>metrics-jmx</artifactId>
-        <version>4.2.0</version>
-        <scope>compile</scope>
-      </dependency>
-      <dependency>
-        <groupId>io.dropwizard.metrics</groupId>
-        <artifactId>metrics-servlets</artifactId>
-        <version>4.2.0</version>
-        <scope>compile</scope>
-      </dependency>
-      <dependency>
         <groupId>io.prometheus</groupId>
         <artifactId>simpleclient</artifactId>
         <version>0.12.0</version>
@@ -99,9 +81,28 @@
       </dependency>
       <dependency>
         <groupId>io.prometheus</groupId>
-        <artifactId>simpleclient_dropwizard</artifactId>
+        <artifactId>simpleclient_hotspot</artifactId>
         <version>0.12.0</version>
-        <scope>compile</scope>
+      </dependency>
+      <dependency>
+        <groupId>io.prometheus</groupId>
+        <artifactId>simpleclient_httpserver</artifactId>
+        <version>0.12.0</version>
+      </dependency>
+      <dependency>
+        <groupId>io.prometheus</groupId>
+        <artifactId>simpleclient_servlet</artifactId>
+        <version>0.12.0</version>
+      </dependency>
+      <dependency>
+        <groupId>io.prometheus</groupId>
+        <artifactId>simpleclient_jetty</artifactId>
+        <version>0.12.0</version>
+      </dependency>
+      <dependency>
+        <groupId>io.prometheus</groupId>
+        <artifactId>simpleclient_jetty_jdk8</artifactId>
+        <version>0.12.0</version>
       </dependency>
       <dependency>
         <groupId>org.hibernate.validator</groupId>
