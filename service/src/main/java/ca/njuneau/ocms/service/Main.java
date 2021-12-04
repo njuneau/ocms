@@ -38,6 +38,7 @@ import ca.njuneau.ocms.model.FridgeRowMapper;
 
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
+import com.zaxxer.hikari.metrics.prometheus.PrometheusMetricsTrackerFactory;
 
 import io.prometheus.client.exporter.MetricsServlet;
 import io.prometheus.client.hotspot.DefaultExports;
@@ -78,7 +79,9 @@ public class Main {
     DefaultExports.initialize();
 
     LOG.info("Creating database connection pool");
+    final var hikariMetrics = new PrometheusMetricsTrackerFactory();
     final var hikariConfig = new HikariConfig();
+    hikariConfig.setMetricsTrackerFactory(hikariMetrics);
     hikariConfig.setJdbcUrl(PG_JDBC_URL);
     hikariConfig.setUsername(PG_USER);
     hikariConfig.setPassword(PG_PASS);
