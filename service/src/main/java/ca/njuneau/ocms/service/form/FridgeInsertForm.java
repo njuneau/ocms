@@ -13,10 +13,10 @@
 
 package ca.njuneau.ocms.service.form;
 
-import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
+import spark.Request;
 
 /**
  * Form for entering a fridge row in the database.
@@ -37,9 +37,9 @@ public class FridgeInsertForm {
   @StringLocalDateTime
   private final String dateExpiry;
 
-  public FridgeInsertForm(final HttpServletRequest request) {
-    this.name = request.getParameter("name");
-    this.dateExpiry = request.getParameter("date-expiry");
+  public FridgeInsertForm(final Request request) {
+    this.name = request.queryParams("name");
+    this.dateExpiry = request.queryParams("date-expiry");
   }
 
   /**

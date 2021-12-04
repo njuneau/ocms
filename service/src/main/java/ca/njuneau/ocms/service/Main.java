@@ -13,21 +13,20 @@
 
 package ca.njuneau.ocms.service;
 
-import java.io.IOException;
-import java.io.Writer;
 import java.lang.management.ManagementFactory;
 import java.time.Clock;
 import java.time.ZoneOffset;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.TimeZone;
 
 import javax.management.MBeanServer;
+import javax.servlet.DispatcherType;
 
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
-import org.eclipse.jetty.server.handler.ErrorHandler;
+import org.eclipse.jetty.servlet.FilterHolder;
 import org.eclipse.jetty.servlet.ServletContextHandler;
-import org.eclipse.jetty.servlet.ServletHolder;
 import org.eclipse.jetty.util.thread.QueuedThreadPool;
 import org.jdbi.v3.core.Jdbi;
 import org.jdbi.v3.sqlobject.SqlObjectPlugin;
@@ -52,9 +51,9 @@ import io.prometheus.client.dropwizard.DropwizardExports;
 
 import jakarta.json.Json;
 import jakarta.json.JsonBuilderFactory;
-import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
+import spark.servlet.SparkApplication;
 
 /**
  * Program entry point
@@ -126,17 +125,13 @@ public class Main {
     connector.setPort(HTTP_PORT);
     server.addConnector(connector);
 
-    // Setup the servlet
+    // Setup the REST endpoint
+    final var fridgeApp = new FridgeApplication(fridgeDao, validator, jsonBuilderFactory);
     final var servletContext = new ServletContextHandler();
     servletContext.setContextPath("/");
-    final var servletHolder = new ServletHolder(new FridgeServlet(fridgeDao, validator, jsonBuilderFactory));
-    servletContext.addServlet(servletHolder, "/*");
-    // Disable default error handler
-    final var emptyErrorHandler = new ErrorHandler() {
-      @Override
-      protected void writeErrorPage(final HttpServletRequest request, final Writer writer, final int code, final String message, final boolean showStacks) throws IOException {};
-    };
-    servletContext.setErrorHandler(emptyErrorHandler);
+    final var sparkFilter = new CustomSparkFilter(new SparkApplication[] {fridgeApp});
+    final var filterHolder = new FilterHolder(sparkFilter);
+    servletContext.addFilter(filterHolder, "/*", EnumSet.of(DispatcherType.REQUEST));
     server.setHandler(servletContext);
 
     // Register JVM shutdown hook
