@@ -21,6 +21,12 @@ import java.util.TimeZone;
 
 import javax.servlet.DispatcherType;
 
+import org.apache.commons.cli.CommandLine;
+import org.apache.commons.cli.DefaultParser;
+import org.apache.commons.cli.HelpFormatter;
+import org.apache.commons.cli.Option;
+import org.apache.commons.cli.Options;
+import org.apache.commons.cli.ParseException;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
 import org.eclipse.jetty.server.handler.HandlerCollection;
@@ -59,11 +65,11 @@ public class Main {
   private static final Logger LOG = LoggerFactory.getLogger(Main.class);
 
   // Don't do this in prod or I'll be very, very mad.
-  private static final String PG_JDBC_URL = "jdbc:postgresql://192.168.10.100:5432/test";
-  private static final String PG_USER     = "test";
-  private static final String PG_PASS     = "test";
+  private static final String DEFAULT_PG_JDBC_URL = "jdbc:postgresql://192.168.10.100:5432/test";
+  private static final String DEFAULT_PG_USER     = "test";
+  private static final String DEFAULT_PG_PASS     = "test";
 
-  private static final int HTTP_PORT      = 8080;
+  private static final int DEFAULT_HTTP_PORT      = 8080;
 
   /**
    * Program entry point
@@ -71,6 +77,87 @@ public class Main {
    * @param args Command-line arguments
    */
   public static void main(final String[] args) {
+    // Setup command line arguments
+    final var cliOptions = new Options();
+
+    final var cliOptionHelp = new Option(
+        "h",
+        "help",
+        false,
+        "Display the command line help");
+    cliOptions.addOption(cliOptionHelp);
+
+    final var cliOptionPgUrl = new Option(
+        "pgurl",
+        true,
+        "The Postgres JDBC connection URL (defaults to '" + DEFAULT_PG_JDBC_URL  + "')");
+    cliOptions.addOption(cliOptionPgUrl);
+
+    final var cliOptionPgUser = new Option(
+        "pguser",
+        true,
+        "The Postgres JDBC connection user (defaults to '" + DEFAULT_PG_USER + "')");
+    cliOptions.addOption(cliOptionPgUser);
+
+    final var cliOptionPgPassword = new Option(
+        "pgpassword",
+        true,
+        "The Postgres JDBC connection password (defaults to '" + DEFAULT_PG_PASS + "')");
+    cliOptions.addOption(cliOptionPgPassword);
+
+    final var cliOptionHttpPort = new Option(
+        "httpport",
+        true,
+        "The HTTP server port (defaults to '" + DEFAULT_HTTP_PORT + "')");
+    cliOptions.addOption(cliOptionHttpPort);
+
+    // Parse command line
+    final var commandLineParser = new DefaultParser();
+    final var helpFormatter = new HelpFormatter();
+    CommandLine commandLine;
+    try {
+      commandLine = commandLineParser.parse(cliOptions, args);
+    } catch (final ParseException ex) {
+      commandLine = null;
+      System.err.println("Invalid command line arguments : " + ex.getLocalizedMessage());
+      helpFormatter.printHelp("fridge", cliOptions);
+      System.exit(1);
+    }
+
+    // Get command line arguments
+    final String pgJdbcUrl = commandLine.getOptionValue(cliOptionPgUrl, DEFAULT_PG_JDBC_URL);
+    final String pgJdbcUser = commandLine.getOptionValue(cliOptionPgUser, DEFAULT_PG_USER);
+    final String pgJdbcPassword = commandLine.getOptionValue(cliOptionPgPassword, DEFAULT_PG_PASS);
+    int httpPort;
+    try {
+      httpPort = Integer.parseInt(commandLine.getOptionValue(cliOptionHttpPort, Integer.toString(DEFAULT_HTTP_PORT)));
+    } catch (final NumberFormatException e) {
+      httpPort = DEFAULT_HTTP_PORT;
+      System.err.println("Invalid port number : " + e.getLocalizedMessage());
+      System.exit(1);
+    }
+
+    // Launch it!
+    if (commandLine.hasOption(cliOptionHelp)) {
+      helpFormatter.printHelp("fridge", cliOptions);
+    } else {
+      launchApplication(pgJdbcUrl, pgJdbcUser, pgJdbcPassword, httpPort);
+    }
+  }
+
+  /**
+   * Launches the application
+   *
+   * @param pgJdbcUrl The Postgres JDBC URL
+   * @param pgJdbcUser The Postgres JDBC user
+   * @param pgJdbcPassword The Postgres JDBC password
+   * @param httpPort The HTTP server port
+   */
+  public static void launchApplication(
+      final String pgJdbcUrl,
+      final String pgJdbcUser,
+      final String pgJdbcPassword,
+      final int httpPort) {
     LOG.info("Setting clock to UTC");
     TimeZone.setDefault(TimeZone.getTimeZone(ZoneOffset.UTC.getId()));
     final Clock clock = Clock.systemUTC();
@@ -82,9 +169,9 @@ public class Main {
     final var hikariMetrics = new PrometheusMetricsTrackerFactory();
     final var hikariConfig = new HikariConfig();
     hikariConfig.setMetricsTrackerFactory(hikariMetrics);
-    hikariConfig.setJdbcUrl(PG_JDBC_URL);
-    hikariConfig.setUsername(PG_USER);
-    hikariConfig.setPassword(PG_PASS);
+    hikariConfig.setJdbcUrl(pgJdbcUrl);
+    hikariConfig.setUsername(pgJdbcUser);
+    hikariConfig.setPassword(pgJdbcPassword);
     final var hikariDS = new HikariDataSource(hikariConfig);
 
     LOG.info("Configuring JDBI");
@@ -113,7 +200,7 @@ public class Main {
 
     final var jettyServer = new Server(jettyThreadPool);
     final var jettyConnector = new ServerConnector(jettyServer);
-    jettyConnector.setPort(HTTP_PORT);
+    jettyConnector.setPort(httpPort);
     jettyServer.addConnector(jettyConnector);
     final var jettyHandlers = new HandlerCollection();
 
@@ -141,7 +228,6 @@ public class Main {
     final var jettyStatisticsCollector = new JettyStatisticsCollector(statisticsHandler);
     jettyStatisticsCollector.register();
 
-
     // Register JVM shutdown hook
     Runtime.getRuntime().addShutdownHook(new Thread(() -> {
       try {
@@ -154,7 +240,7 @@ public class Main {
       }
     }));
 
-    // Start it up!
+    // Start Jetty
     try {
       jettyServer.start();
     } catch (final Exception e) {

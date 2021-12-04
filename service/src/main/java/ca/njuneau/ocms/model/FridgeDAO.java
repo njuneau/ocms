@@ -33,10 +33,21 @@ public interface FridgeDAO {
   @RegisterRowMapper(FridgeRowMapper.class)
   public List<FridgeRow> getFridgeRows();
 
+  /**
+   * Optain a row by ID
+   * @param id The fridge row identifier
+   * @return The fridge row
+   */
   @SqlQuery("SELECT * FROM fridge WHERE id = ?")
   @RegisterRowMapper(FridgeRowMapper.class)
   public FridgeRow getFrideRow(final UUID id);
 
+  /**
+   * Inserts a row in the fridge
+   * @param id The row's unique identifier
+   * @param name The row's name
+   * @param dateExpiry The fridge row's expiry date
+   */
   @SqlUpdate("INSERT INTO fridge (id, name, date_expiry) VALUES (?, ?, ?)")
   public void insertFridgeRow(final UUID id, final String name, final OffsetDateTime dateExpiry);
 

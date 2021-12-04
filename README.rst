@@ -214,6 +214,11 @@ Launch it:
 
   java -jar service/target/service-0.0.0-SNAPSHOT-assembly/service-0.0.0-SNAPSHOT.jar
 
+Command line help:
+
+.. code:: sh
+
+  java -jar service/target/service-0.0.0-SNAPSHOT-assembly/service-0.0.0-SNAPSHOT.jar -help
 
 You can then go on http://127.0.0.1:8080/fridge/ with your browser. The application is a very very
 basic refrigerator content manager. Going to ``/fridge/`` will give you the list of items in your fridge.
