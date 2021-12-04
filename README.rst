@@ -212,22 +212,23 @@ Launch it:
 
 .. code:: sh
 
-  java -jar service/target/service-0.0.0-SNAPSHOT-assembly/service-0.0.0-SNAPSHOT.JAR
+  java -jar service/target/service-0.0.0-SNAPSHOT-assembly/service-0.0.0-SNAPSHOT.jar
 
 
-You can then go on http://127.0.0.1:8080/ with your browser. The application is a very very basic
-refrigerator content manager. Going to ``/`` will give you the list of items in your fridge.
+You can then go on http://127.0.0.1:8080/fridge/ with your browser. The application is a very very
+basic refrigerator content manager. Going to ``/fridge/`` will give you the list of items in your fridge.
 
 To insert content in your fridge:
 
 .. code:: sh
 
-  curl -X 'POST' -d 'name=bread' -d 'date-expiry=2021-11-28T00:00:00' http://127.0.0.1:8080/
+  curl -X 'POST' -d 'name=bread' -d 'date-expiry=2021-11-28T00:00:00' http://127.0.0.1:8080/fridge/
 
 Dates are all UTC.
 
+You can also consult the Prometheus metrics at ``http://127.0.0.1:8080/metrics/``
+
 .. [#java-ee-deployment] https://jakarta.ee/specifications/platform/9/jakarta-platform-spec-9.html#application-assembly-and-deployment
-.. [#datasource-injection] https://jakarta.ee/specifications/platform/9/jakarta-platform-spec-9.html#a1688
 .. [#magic] Magic in a sense that not many people would fully understand how the services' initialization actually ended up working
 .. [#jetty-server-api] https://www.eclipse.org/jetty/documentation/jetty-11/programming-guide/index.html#pg-server-http
 .. [#undertow] https://undertow.io/
