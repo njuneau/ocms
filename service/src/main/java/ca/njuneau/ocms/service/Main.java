@@ -16,10 +16,7 @@ package ca.njuneau.ocms.service;
 import java.time.Clock;
 import java.time.ZoneOffset;
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.TimeZone;
-
-import javax.servlet.DispatcherType;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.DefaultParser;
@@ -31,8 +28,8 @@ import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
 import org.eclipse.jetty.server.handler.HandlerCollection;
 import org.eclipse.jetty.server.handler.StatisticsHandler;
-import org.eclipse.jetty.servlet.FilterHolder;
 import org.eclipse.jetty.servlet.ServletContextHandler;
+import org.eclipse.jetty.servlet.ServletHolder;
 import org.eclipse.jetty.util.thread.QueuedThreadPool;
 import org.jdbi.v3.core.Jdbi;
 import org.jdbi.v3.sqlobject.SqlObjectPlugin;
@@ -41,12 +38,12 @@ import org.slf4j.LoggerFactory;
 
 import ca.njuneau.ocms.model.FridgeDAO;
 import ca.njuneau.ocms.model.FridgeRowMapper;
+import ca.njuneau.ocms.service.compat.JakartaMetricsServlet;
 
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import com.zaxxer.hikari.metrics.prometheus.PrometheusMetricsTrackerFactory;
 
-import io.prometheus.client.exporter.MetricsServlet;
 import io.prometheus.client.hotspot.DefaultExports;
 import io.prometheus.client.jetty.JettyStatisticsCollector;
 import io.prometheus.client.jetty.QueuedThreadPoolStatisticsCollector;
@@ -55,7 +52,6 @@ import jakarta.json.Json;
 import jakarta.json.JsonBuilderFactory;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
-import spark.servlet.SparkApplication;
 
 /**
  * Program entry point
@@ -65,7 +61,7 @@ public class Main {
   private static final Logger LOG = LoggerFactory.getLogger(Main.class);
 
   // Don't do this in prod or I'll be very, very mad.
-  private static final String DEFAULT_PG_JDBC_URL = "jdbc:postgresql://192.168.10.100:5432/test";
+  private static final String DEFAULT_PG_JDBC_URL = "jdbc:postgresql://192.168.56.2:5432/test";
   private static final String DEFAULT_PG_USER     = "test";
   private static final String DEFAULT_PG_PASS     = "test";
 
@@ -205,18 +201,19 @@ public class Main {
     final var jettyHandlers = new HandlerCollection();
 
     // Setup the application endpoint
-    final var fridgeServletContext = new ServletContextHandler();
-    fridgeServletContext.setContextPath("/fridge/");
-    final var fridgeApp = new FridgeApplication(fridgeDao, validator, jsonBuilderFactory);
-    final var sparkFilter = new CustomSparkFilter(new SparkApplication[] {fridgeApp});
-    final var sparkFilterHolder = new FilterHolder(sparkFilter);
-    fridgeServletContext.addFilter(sparkFilterHolder, "/*", EnumSet.of(DispatcherType.REQUEST));
-    jettyHandlers.addHandler(fridgeServletContext);
+    final var fridgeServletContextHandler = new ServletContextHandler();
+    fridgeServletContextHandler.setContextPath("/fridge/");
+    final var fridgeServlet = new FridgeApplication(fridgeDao, validator, jsonBuilderFactory);
+    final var fridgeErrorHandler = new FridgeErrorHandler(jsonBuilderFactory);
+    final var fridgeServletHolder = new ServletHolder(fridgeServlet);
+    fridgeServletContextHandler.addServlet(fridgeServletHolder, "/");
+    fridgeServletContextHandler.setErrorHandler(fridgeErrorHandler);
+    jettyHandlers.addHandler(fridgeServletContextHandler);
 
     // Setup the metrics endpoint
     final var metricsServletContext = new ServletContextHandler();
     metricsServletContext.setContextPath("/metrics/");
-    metricsServletContext.addServlet(MetricsServlet.class, "/*");
+    metricsServletContext.addServlet(JakartaMetricsServlet.class, "/");
     jettyHandlers.addHandler(metricsServletContext);
 
     jettyServer.setHandler(jettyHandlers);

@@ -13,8 +13,6 @@
 
 package ca.njuneau.ocms.service;
 
-import static spark.Spark.*;
-
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
@@ -35,16 +33,19 @@ import jakarta.json.JsonArrayBuilder;
 import jakarta.json.JsonBuilderFactory;
 import jakarta.json.JsonObject;
 import jakarta.json.JsonObjectBuilder;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServlet;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
-import spark.Request;
-import spark.Response;
-import spark.servlet.SparkApplication;
 
 /**
  * Demo application that speaks to the database. It manages your fridge.
  */
-public class FridgeApplication implements SparkApplication {
+public class FridgeApplication extends HttpServlet {
+  private static final long serialVersionUID = 8206552945496310550L;
+
   private static final Logger LOG = LoggerFactory.getLogger(FridgeApplication.class);
 
   private static final String CONTENT_TYPE = "application/json";
@@ -66,51 +67,43 @@ public class FridgeApplication implements SparkApplication {
   }
 
   @Override
-  public void init() {
-    before(this::beforeRequest);
-    notFound(this::handleNotFound);
-    internalServerError(this::handleInternalError);
-
-    get("/", this::handleGetRoot);
-    post("/", this::handlePostRoot);
+  protected void service(final HttpServletRequest request, final HttpServletResponse response) throws ServletException, IOException {
+    response.setContentType(CONTENT_TYPE);
+    if (request.getPathInfo() == null) {
+      super.service(request, response);
+    } else {
+      response.getWriter().print(createJsonErrorBuilder(404, "Not found").build().toString());
+    }
   }
 
   /**
-   * Executed before each request. Sets the content type to JSON across the board.
+   * Obtains the list of items in the fridge
    *
    * @param request The HTTP request
    * @param response The HTTP response
+   * @throws IOException If something goes wrong while writing the response
    */
-  private void beforeRequest(final Request request, final Response response) {
-    response.type(CONTENT_TYPE);
-  }
-
-  /**
-   * Handles the root path ("/") GET. Obtain all items in the fridge
-   *
-   * @param request The HTTP request
-   * @param response The HTTP response
-   * @return The response body
-   */
-  private String handleGetRoot(final Request request, final Response response) {
+  @Override
+  protected void doGet(final HttpServletRequest request, final HttpServletResponse response) throws IOException {
     final List<FridgeRow> rows = fridgeDao.getFridgeRows();
     final JsonArrayBuilder arrayBuilder = jsonBuilderFactory.createArrayBuilder();
     for (final FridgeRow row : rows) {
       arrayBuilder.add(row.toJson(jsonBuilderFactory.createObjectBuilder(), RESPONSE_DATE_TIME_FORMATTER));
     }
-    response.status(200);
-    return arrayBuilder.build().toString();
+
+    response.getOutputStream().print(arrayBuilder.build().toString());
   }
 
   /**
-   * Handles the root path ("/") POST. Inserts an item in the fridge
+   * Inserts an item in the fridge
    *
    * @param request The HTTP request
    * @param response The HTTP response
-   * @return The response body
+   * @throws IOException If something goes wrong while writing the response
    */
-  private String handlePostRoot(final Request request, final Response response) throws IOException {
-    final var form = new FridgeInsertForm(request);
+  @Override
+  protected void doPost(final HttpServletRequest request, final HttpServletResponse response) throws IOException {
+    final var form = new FridgeInsertForm(request.getParameter("name"), request.getParameter("date-expiry"));
     final Set<ConstraintViolation<FridgeInsertForm>> formErrors = validator.validate(form);
     int responseStatus;
     String responseBody;
@@ -118,12 +111,12 @@ public class FridgeApplication implements SparkApplication {
     if (formErrors.isEmpty()) {
       // Form validated successfully. Insert in the database.
       try {
-        final OffsetDateTime dateExpiry = LocalDateTime
-            .parse(form.getDateExpiry(), DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+        final OffsetDateTime dateExpiryTime = LocalDateTime
+            .parse(form.dateExpiry(), DateTimeFormatter.ISO_LOCAL_DATE_TIME)
             .atZone(ZoneOffset.UTC)
             .toOffsetDateTime();
         final UUID rowId = UUID.randomUUID();
-        fridgeDao.insertFridgeRow(rowId, form.getName(), dateExpiry);
+        fridgeDao.insertFridgeRow(rowId, form.name(), dateExpiryTime);
 
         final FridgeRow insertedRow = fridgeDao.getFrideRow(rowId);
         responseStatus = 201;
@@ -152,32 +145,8 @@ public class FridgeApplication implements SparkApplication {
       responseBody = jsonResponse.toString();
     }
 
-    response.status(responseStatus);
-    return responseBody;
-  }
-
-  /**
-   * Answers with a "internal server error"
-   *
-   * @param request The HTTP request
-   * @param response The HTTP response
-   * @return The response body
-   */
-  private String  handleInternalError(final Request request, final Response response)  {
-    response.status(500);
-    return createJsonErrorBuilder(500, "Internal server error").build().toString();
-  }
-
-  /**
-   * Answers with a "not found" error
-   *
-   * @param request The HTTP request
-   * @param response The HTTP response
-   * @return The response body
-   */
-  private String handleNotFound(final Request request, final Response response) {
-    response.status(404);
-    return createJsonErrorBuilder(404, "Not found").build().toString();
+    response.setStatus(responseStatus);
+    response.getOutputStream().print(responseBody);
   }
 
   /**

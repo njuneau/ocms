@@ -23,55 +23,29 @@ import jakarta.json.JsonObjectBuilder;
 /**
  * A refrigirator row
  */
-public class FridgeRow {
-  private final UUID id;
-  private final String name;
-  private final OffsetDateTime dateEntered;
-  private final OffsetDateTime dateExpiry;
-
+public record FridgeRow(
   /**
-   * @param id The row's primary key
-   * @param name The fridge item's name
-   * @param dateEntered The date at which the item was put in the fridge
-   * @param dateExpiry The item's expiration date
+   * The row's primary key
    */
-  public FridgeRow(final UUID id, final String name, final OffsetDateTime dateEntered, final OffsetDateTime dateExpiry) {
-    this.id = id;
-    this.name = name;
-    this.dateEntered = dateEntered;
-    this.dateExpiry = dateExpiry;
-  }
+  UUID id,
 
   /**
-   * @return The row's primary key
+   * The fridge item's name
    */
-  public UUID getId() {
-    return id;
-  }
+  String name,
 
   /**
-   * @return The fridge item's name
+   * The date at which the item was put in the fridge
    */
-  public String getName() {
-    return name;
-  }
+  OffsetDateTime dateEntered,
 
   /**
-   * @return The date at which the item was put in the fridge
+   * The item's expiration date
    */
-  public OffsetDateTime getDateEntered() {
-    return dateEntered;
-  }
+  OffsetDateTime dateExpiry) {
 
   /**
-   * @return The item's expiration date
-   */
-  public OffsetDateTime getDateExpiry() {
-    return dateExpiry;
-  }
-
-  /**
-   * Converts this object to JSON
+   * Converts this record to JSON
    * @param builder The JSON builder to use when creating the JSON object
    * @param dateTimeFormatter The formatter to use for outputting dates
    * @return The JSON representation of the fridge item

@@ -35,7 +35,7 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
     <version.io.prometheus>0.14.1</version.io.prometheus>
-    <version.org.eclipse.jetty>10.0.7</version.org.eclipse.jetty>
+    <version.org.eclipse.jetty>11.0.7</version.org.eclipse.jetty>
 
     <revision>0.0.0</revision>
     <changelist>-SNAPSHOT</changelist>
@@ -52,7 +52,7 @@
       <dependency>
         <groupId>ch.qos.logback</groupId>
         <artifactId>logback-classic</artifactId>
-        <version>1.2.9</version>
+        <version>1.2.10</version>
         <scope>compile</scope>
       </dependency>
       <dependency>
@@ -76,11 +76,6 @@
         <groupId>org.eclipse.jetty</groupId>
         <artifactId>jetty-servlet</artifactId>
         <version>${version.org.eclipse.jetty}</version>
-      </dependency>
-      <dependency>
-        <groupId>com.sparkjava</groupId>
-        <artifactId>spark-core</artifactId>
-        <version>2.9.3</version>
       </dependency>
       <dependency>
         <groupId>io.prometheus</groupId>
@@ -134,14 +129,14 @@
       <dependency>
         <groupId>org.glassfish</groupId>
         <artifactId>jakarta.el</artifactId>
-        <version>4.0.0</version>
+        <version>4.0.2</version>
         <scope>runtime</scope>
       </dependency>
       <dependency>
         <groupId>org.jdbi</groupId>
         <artifactId>jdbi3-bom</artifactId>
         <type>pom</type>
-        <version>3.25.0</version>
+        <version>3.26.0</version>
         <scope>import</scope>
       </dependency>
     </dependencies>

@@ -202,6 +202,19 @@ Startup the database server like so:
   cd vagrant
   vagrant up
 
+**A note on recent VirtualBox releases:** recent releases of VirtualBox (``6.1.28``) introduced
+restrictions on host-only networking. Starting with this release, on \*nix, only the
+``192.168.56.0/21`` IP range can be assigned to host-only adapters (see `the manual`_).
+
+As such, the IP address used by the database server is now ``192.168.56.2``. If you had a previously
+provisioned database server, it might not work well anymore. If you encounter problems, simply reset
+it:
+
+.. code:: sh
+
+   cd vagrant
+   vagrant destroy -f && vagrant up
+
 Compile the project:
 
 .. code:: sh
@@ -221,7 +234,8 @@ Command line help:
   java -jar service/target/service-0.0.0-SNAPSHOT-assembly/service-0.0.0-SNAPSHOT.jar -help
 
 You can then go on http://127.0.0.1:8080/fridge/ with your browser. The application is a very very
-basic refrigerator content manager. Going to ``/fridge/`` will give you the list of items in your fridge.
+basic refrigerator content manager. Going to ``/fridge/`` will give you the list of items in your
+fridge.
 
 To insert content in your fridge:
 
@@ -245,3 +259,5 @@ You can also consult the Prometheus metrics at ``http://127.0.0.1:8080/metrics/`
 .. _Wildfly Swarm: https://www.wildfly.org/news/2015/05/05/WildFly-Swarm-Released/
 .. _Thorntail: https://thorntail.io/posts/the-end-of-an-era/
 .. _Vert.x: https://vertx.io
+.. _the manual: https://www.virtualbox.org/manual/ch06.html#network_hostonly
+

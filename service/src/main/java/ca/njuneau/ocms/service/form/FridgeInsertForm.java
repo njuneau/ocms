@@ -16,44 +16,22 @@ package ca.njuneau.ocms.service.form;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
-import spark.Request;
 
 /**
  * Form for entering a fridge row in the database.
  */
-public class FridgeInsertForm {
+public record FridgeInsertForm(
+    /**
+     * Form parameter "name" with restrictive pattern
+     */
+    @NotBlank
+    @Pattern(regexp = "[a-zA-Z0-3 \\-_\"',\\.]+")
+    String name,
 
-  /**
-   * Form parameter "name" with restrictive pattern
-   */
-  @NotBlank
-  @Pattern(regexp = "[a-zA-Z0-3 \\-_\"',\\.]+")
-  private final String name;
-
-  /**
-   * Form parameter "date-expiry" with primitive date and time format
-   */
-  @NotNull
-  @StringLocalDateTime
-  private final String dateExpiry;
-
-  public FridgeInsertForm(final Request request) {
-    this.name = request.queryParams("name");
-    this.dateExpiry = request.queryParams("date-expiry");
-  }
-
-  /**
-   * @return The fridge row's name
-   */
-  public String getName() {
-    return name;
-  }
-
-  /**
-   * @return An ISO-8601 timestamp indicating the date at which the fridge item expires
-   */
-  public String getDateExpiry() {
-    return dateExpiry;
-  }
-
+    /**
+     * Form parameter "date-expiry" with primitive date and time format
+     */
+    @NotNull
+    @StringLocalDateTime
+    String dateExpiry) {
 }
