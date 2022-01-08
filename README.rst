@@ -190,7 +190,7 @@ How to compile and test the service
 
 To compile, you need:
 
-* JDK >= 11
+* JDK >= 17
 * Maven
 * VirtualBox
 * Vagrant
