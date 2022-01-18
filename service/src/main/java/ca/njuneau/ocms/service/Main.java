@@ -38,7 +38,6 @@ import org.slf4j.LoggerFactory;
 
 import ca.njuneau.ocms.model.FridgeDAO;
 import ca.njuneau.ocms.model.FridgeRowMapper;
-import ca.njuneau.ocms.service.compat.JakartaMetricsServlet;
 
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
@@ -47,6 +46,7 @@ import com.zaxxer.hikari.metrics.prometheus.PrometheusMetricsTrackerFactory;
 import io.prometheus.client.hotspot.DefaultExports;
 import io.prometheus.client.jetty.JettyStatisticsCollector;
 import io.prometheus.client.jetty.QueuedThreadPoolStatisticsCollector;
+import io.prometheus.client.servlet.jakarta.exporter.MetricsServlet;
 
 import jakarta.json.Json;
 import jakarta.json.JsonBuilderFactory;
@@ -213,7 +213,7 @@ public class Main {
     // Setup the metrics endpoint
     final var metricsServletContext = new ServletContextHandler();
     metricsServletContext.setContextPath("/metrics/");
-    metricsServletContext.addServlet(JakartaMetricsServlet.class, "/");
+    metricsServletContext.addServlet(MetricsServlet.class, "/");
     jettyHandlers.addHandler(metricsServletContext);
 
     jettyServer.setHandler(jettyHandlers);

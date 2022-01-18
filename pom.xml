@@ -95,7 +95,7 @@
       </dependency>
       <dependency>
         <groupId>io.prometheus</groupId>
-        <artifactId>simpleclient_servlet</artifactId>
+        <artifactId>simpleclient_servlet_jakarta</artifactId>
         <version>${version.io.prometheus}</version>
       </dependency>
       <dependency>
