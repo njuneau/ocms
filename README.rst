@@ -188,32 +188,19 @@ your end. Have fun with the code!
 How to compile and test the service
 -----------------------------------
 
-To compile, you need:
+You will need:
 
 * JDK >= 17
 * Maven
-* VirtualBox
-* Vagrant
+* Docker or Podman
 
-Startup the database server like so:
-
-.. code:: sh
-
-  cd vagrant
-  vagrant up
-
-**A note on recent VirtualBox releases:** recent releases of VirtualBox (``6.1.28``) introduced
-restrictions on host-only networking. Starting with this release, on \*nix, only the
-``192.168.56.0/21`` IP range can be assigned to host-only adapters (see `the manual`_).
-
-As such, the IP address used by the database server is now ``192.168.56.2``. If you had a previously
-provisioned database server, it might not work well anymore. If you encounter problems, simply reset
-it:
+Startup the database server container and initialize the database:
 
 .. code:: sh
 
-   cd vagrant
-   vagrant destroy -f && vagrant up
+  cd scripts
+  ./start-pg-container.sh
+  ./init-db.sh
 
 Compile the project:
 
@@ -259,5 +246,4 @@ You can also consult the Prometheus metrics at ``http://127.0.0.1:8080/metrics/`
 .. _Wildfly Swarm: https://www.wildfly.org/news/2015/05/05/WildFly-Swarm-Released/
 .. _Thorntail: https://thorntail.io/posts/the-end-of-an-era/
 .. _Vert.x: https://vertx.io
-.. _the manual: https://www.virtualbox.org/manual/ch06.html#network_hostonly
 

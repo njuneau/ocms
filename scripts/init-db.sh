@@ -1,25 +1,30 @@
-<%- | | -%>#!/bin/bash
-set -e
+#!/bin/sh
+
+export PGHOST='127.0.0.1'
+export PGPORT='5432'
+export PGDATABASE='test'
+export PGUSER='test'
+export PGPASSWORD='test'
 
 TEST_ROLE="$(psql -Atc "SELECT rolname FROM pg_roles WHERE rolname = 'test';")"
-if [[ -z "${TEST_ROLE}" ]]; then
-  psql -c "CREATE ROLE test WITH LOGIN PASSWORD 'test';"
+if test -z "${TEST_ROLE}"; then
+  psql "CREATE ROLE test WITH LOGIN PASSWORD 'test';"
 fi
 
 TEST_DATABASE="$(psql -Atc "SELECT datname FROM pg_database WHERE datname = 'test';")"
-if [[ -z "${TEST_DATABASE}" ]]; then
+if test -z "${TEST_DATABASE}"; then
   psql -c "CREATE DATABASE test OWNER test LOCALE 'en_US.UTF-8' ENCODING 'UTF8';"
   psql -c "GRANT CONNECT ON DATABASE test TO test;"
-  psql -d 'test' -f - <<EOF
+  psql -f - <<EOF
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO test;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES to test;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON ROUTINES to test;
 EOF
 fi
 
-TEST_TABLE="$(psql -d 'test' -Atc "SELECT tablename FROM pg_tables WHERE tablename = 'fridge';")"
-if [[ -z "${TEST_TABLE}" ]]; then
-  psql -d 'test' -f - <<EOF
+TEST_TABLE="$(psql -Atc "SELECT tablename FROM pg_tables WHERE tablename = 'fridge';")"
+if test -z "${TEST_TABLE}"; then
+  psql -f - <<EOF
 CREATE TABLE fridge(
   id            uuid                      PRIMARY KEY,
   name          VARCHAR(255)              NOT NULL,

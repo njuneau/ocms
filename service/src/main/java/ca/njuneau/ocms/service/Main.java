@@ -61,7 +61,7 @@ public class Main {
   private static final Logger LOG = LoggerFactory.getLogger(Main.class);
 
   // Don't do this in prod or I'll be very, very mad.
-  private static final String DEFAULT_PG_JDBC_URL = "jdbc:postgresql://192.168.56.2:5432/test";
+  private static final String DEFAULT_PG_JDBC_URL = "jdbc:postgresql://127.0.0.1:5432/test";
   private static final String DEFAULT_PG_USER     = "test";
   private static final String DEFAULT_PG_PASS     = "test";
 
