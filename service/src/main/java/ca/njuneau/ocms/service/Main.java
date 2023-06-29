@@ -10,7 +10,6 @@
 //
 // You should have received a copy of the GNU General Public License along with OCMS.  If not, see
 // <https://www.gnu.org/licenses/>.
-
 package ca.njuneau.ocms.service;
 
 import java.time.Clock;
@@ -62,10 +61,10 @@ public class Main {
 
   // Don't do this in prod or I'll be very, very mad.
   private static final String DEFAULT_PG_JDBC_URL = "jdbc:postgresql://127.0.0.1:5432/test";
-  private static final String DEFAULT_PG_USER     = "test";
-  private static final String DEFAULT_PG_PASS     = "test";
+  private static final String DEFAULT_PG_USER = "test";
+  private static final String DEFAULT_PG_PASS = "test";
 
-  private static final int DEFAULT_HTTP_PORT      = 8080;
+  private static final int DEFAULT_HTTP_PORT = 8080;
 
   /**
    * Program entry point
@@ -77,34 +76,34 @@ public class Main {
     final var cliOptions = new Options();
 
     final var cliOptionHelp = new Option(
-        "h",
-        "help",
-        false,
-        "Display the command line help");
+            "h",
+            "help",
+            false,
+            "Display the command line help");
     cliOptions.addOption(cliOptionHelp);
 
     final var cliOptionPgUrl = new Option(
-        "pgurl",
-        true,
-        "The Postgres JDBC connection URL (defaults to '" + DEFAULT_PG_JDBC_URL  + "')");
+            "pgurl",
+            true,
+            "The Postgres JDBC connection URL (defaults to '" + DEFAULT_PG_JDBC_URL + "')");
     cliOptions.addOption(cliOptionPgUrl);
 
     final var cliOptionPgUser = new Option(
-        "pguser",
-        true,
-        "The Postgres JDBC connection user (defaults to '" + DEFAULT_PG_USER + "')");
+            "pguser",
+            true,
+            "The Postgres JDBC connection user (defaults to '" + DEFAULT_PG_USER + "')");
     cliOptions.addOption(cliOptionPgUser);
 
     final var cliOptionPgPassword = new Option(
-        "pgpassword",
-        true,
-        "The Postgres JDBC connection password (defaults to '" + DEFAULT_PG_PASS + "')");
+            "pgpassword",
+            true,
+            "The Postgres JDBC connection password (defaults to '" + DEFAULT_PG_PASS + "')");
     cliOptions.addOption(cliOptionPgPassword);
 
     final var cliOptionHttpPort = new Option(
-        "httpport",
-        true,
-        "The HTTP server port (defaults to '" + DEFAULT_HTTP_PORT + "')");
+            "httpport",
+            true,
+            "The HTTP server port (defaults to '" + DEFAULT_HTTP_PORT + "')");
     cliOptions.addOption(cliOptionHttpPort);
 
     // Parse command line
@@ -113,11 +112,9 @@ public class Main {
     CommandLine commandLine;
     try {
       commandLine = commandLineParser.parse(cliOptions, args);
-    } catch (final ParseException ex) {
-      commandLine = null;
-      System.err.println("Invalid command line arguments : " + ex.getLocalizedMessage());
+    } catch (final ParseException e) {
       helpFormatter.printHelp("fridge", cliOptions);
-      System.exit(1);
+      throw new IllegalArgumentException("Invalid command line arguments", e);
     }
 
     // Get command line arguments
@@ -128,9 +125,7 @@ public class Main {
     try {
       httpPort = Integer.parseInt(commandLine.getOptionValue(cliOptionHttpPort, Integer.toString(DEFAULT_HTTP_PORT)));
     } catch (final NumberFormatException e) {
-      httpPort = DEFAULT_HTTP_PORT;
-      System.err.println("Invalid port number : " + e.getLocalizedMessage());
-      System.exit(1);
+      throw new IllegalArgumentException("Invalid port number", e);
     }
 
     // Launch it!
@@ -150,10 +145,10 @@ public class Main {
    * @param httpPort The HTTP server port
    */
   public static void launchApplication(
-      final String pgJdbcUrl,
-      final String pgJdbcUser,
-      final String pgJdbcPassword,
-      final int httpPort) {
+          final String pgJdbcUrl,
+          final String pgJdbcUser,
+          final String pgJdbcPassword,
+          final int httpPort) {
     LOG.info("Setting clock to UTC");
     TimeZone.setDefault(TimeZone.getTimeZone(ZoneOffset.UTC.getId()));
     final Clock clock = Clock.systemUTC();
@@ -181,17 +176,17 @@ public class Main {
 
     LOG.info("Configuring Bean Validator");
     final Validator validator = Validation
-        .byDefaultProvider()
-        .configure()
-        .clockProvider(() -> clock)
-        .buildValidatorFactory()
-        .getValidator();
+            .byDefaultProvider()
+            .configure()
+            .clockProvider(() -> clock)
+            .buildValidatorFactory()
+            .getValidator();
 
     LOG.info("Launching HTTP server");
     final var jettyThreadPool = new QueuedThreadPool();
     jettyThreadPool.setName("jetty");
-    final var jettyThreadPoolStatisctics =
-        new QueuedThreadPoolStatisticsCollector(jettyThreadPool, jettyThreadPool.getName());
+    final var jettyThreadPoolStatisctics
+            = new QueuedThreadPoolStatisticsCollector(jettyThreadPool, jettyThreadPool.getName());
     jettyThreadPoolStatisctics.register();
 
     final var jettyServer = new Server(jettyThreadPool);
@@ -201,8 +196,7 @@ public class Main {
     final var jettyHandlers = new HandlerCollection();
 
     // Setup the application endpoint
-    final var fridgeServletContextHandler = new ServletContextHandler();
-    fridgeServletContextHandler.setContextPath("/fridge/");
+    final var fridgeServletContextHandler = new ServletContextHandler(null, "/fridge");
     final var fridgeServlet = new FridgeApplication(fridgeDao, validator, jsonBuilderFactory);
     final var fridgeErrorHandler = new FridgeErrorHandler(jsonBuilderFactory);
     final var fridgeServletHolder = new ServletHolder(fridgeServlet);
@@ -211,8 +205,7 @@ public class Main {
     jettyHandlers.addHandler(fridgeServletContextHandler);
 
     // Setup the metrics endpoint
-    final var metricsServletContext = new ServletContextHandler();
-    metricsServletContext.setContextPath("/metrics/");
+    final var metricsServletContext = new ServletContextHandler(null, "/metrics");
     metricsServletContext.addServlet(MetricsServlet.class, "/");
     jettyHandlers.addHandler(metricsServletContext);
 
