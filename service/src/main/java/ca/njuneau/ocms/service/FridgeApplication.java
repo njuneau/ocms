@@ -22,13 +22,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import ca.njuneau.ocms.model.FridgeDAO;
-import ca.njuneau.ocms.model.FridgeRow;
-import ca.njuneau.ocms.service.form.FridgeInsertForm;
-
 import jakarta.json.JsonArrayBuilder;
 import jakarta.json.JsonBuilderFactory;
 import jakarta.json.JsonObject;
@@ -39,6 +32,13 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
+
+import ca.njuneau.ocms.model.FridgeDAO;
+import ca.njuneau.ocms.model.FridgeRow;
+import ca.njuneau.ocms.service.form.FridgeInsertForm;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Demo application that speaks to the database. It manages your fridge.

@@ -12,15 +12,16 @@
 //<https://www.gnu.org/licenses/>.
 package ca.njuneau.ocms.service;
 
+
 import java.io.IOException;
 
-import org.eclipse.jetty.server.Request;
-import org.eclipse.jetty.server.handler.ErrorHandler;
-
 import jakarta.json.JsonBuilderFactory;
-import jakarta.servlet.ServletException;
-import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+
+import org.eclipse.jetty.server.Request;
+import org.eclipse.jetty.server.Response;
+import org.eclipse.jetty.server.handler.ErrorHandler;
+import org.eclipse.jetty.util.Callback;
 
 /**
  * Handles out-of-servlet errors
@@ -39,19 +40,22 @@ public class FridgeErrorHandler extends ErrorHandler {
   }
 
   @Override
-  public void handle(
-      final String target,
-      final Request baseRequest,
-      final HttpServletRequest request,
-      final HttpServletResponse response) throws IOException, ServletException {
-    response.setContentType(CONTENT_TYPE);
-    response.getOutputStream().print(
-      jsonBuilderFactory
-        .createObjectBuilder()
-        .add("code", response.getStatus())
-        .add("message", "Error")
-        .build()
-        .toString()
-    );
+  public boolean handle(final Request request, final Response response, final Callback callback) {
+    if (response instanceof HttpServletResponse servletResponse) {
+      servletResponse.setContentType(CONTENT_TYPE);
+      try {
+        servletResponse.getOutputStream().print(
+                jsonBuilderFactory
+                        .createObjectBuilder()
+                        .add("code", response.getStatus())
+                        .add("message", "Error")
+                        .build()
+                        .toString()
+        );
+      } catch (final IOException e) {
+        throw new RuntimeException("Failed to render error page", e);
+      }
+    }
+    return true;
   }
 }

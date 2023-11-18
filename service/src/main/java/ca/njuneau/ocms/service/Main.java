@@ -17,40 +17,36 @@ import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.TimeZone;
 
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.DefaultParser;
-import org.apache.commons.cli.HelpFormatter;
-import org.apache.commons.cli.Option;
-import org.apache.commons.cli.Options;
-import org.apache.commons.cli.ParseException;
-import org.eclipse.jetty.server.Server;
-import org.eclipse.jetty.server.ServerConnector;
-import org.eclipse.jetty.server.handler.HandlerCollection;
-import org.eclipse.jetty.server.handler.StatisticsHandler;
-import org.eclipse.jetty.servlet.ServletContextHandler;
-import org.eclipse.jetty.servlet.ServletHolder;
-import org.eclipse.jetty.util.thread.QueuedThreadPool;
-import org.jdbi.v3.core.Jdbi;
-import org.jdbi.v3.sqlobject.SqlObjectPlugin;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import jakarta.json.Json;
+import jakarta.json.JsonBuilderFactory;
+import jakarta.validation.Validation;
+import jakarta.validation.Validator;
 
 import ca.njuneau.ocms.model.FridgeDAO;
 import ca.njuneau.ocms.model.FridgeRowMapper;
 
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
-import com.zaxxer.hikari.metrics.prometheus.PrometheusMetricsTrackerFactory;
 
-import io.prometheus.client.hotspot.DefaultExports;
-import io.prometheus.client.jetty.JettyStatisticsCollector;
-import io.prometheus.client.jetty.QueuedThreadPoolStatisticsCollector;
-import io.prometheus.client.servlet.jakarta.exporter.MetricsServlet;
+import io.prometheus.metrics.exporter.servlet.jakarta.PrometheusMetricsServlet;
+import io.prometheus.metrics.instrumentation.jvm.JvmMetrics;
 
-import jakarta.json.Json;
-import jakarta.json.JsonBuilderFactory;
-import jakarta.validation.Validation;
-import jakarta.validation.Validator;
+import org.apache.commons.cli.CommandLine;
+import org.apache.commons.cli.DefaultParser;
+import org.apache.commons.cli.HelpFormatter;
+import org.apache.commons.cli.Option;
+import org.apache.commons.cli.Options;
+import org.apache.commons.cli.ParseException;
+import org.eclipse.jetty.ee10.servlet.ServletContextHandler;
+import org.eclipse.jetty.ee10.servlet.ServletHolder;
+import org.eclipse.jetty.server.Server;
+import org.eclipse.jetty.server.ServerConnector;
+import org.eclipse.jetty.server.handler.ContextHandlerCollection;
+import org.eclipse.jetty.util.thread.QueuedThreadPool;
+import org.jdbi.v3.core.Jdbi;
+import org.jdbi.v3.sqlobject.SqlObjectPlugin;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Program entry point
@@ -154,12 +150,10 @@ public class Main {
     final Clock clock = Clock.systemUTC();
 
     LOG.info("Initializing metrics");
-    DefaultExports.initialize();
+    JvmMetrics.builder().register();
 
     LOG.info("Creating database connection pool");
-    final var hikariMetrics = new PrometheusMetricsTrackerFactory();
     final var hikariConfig = new HikariConfig();
-    hikariConfig.setMetricsTrackerFactory(hikariMetrics);
     hikariConfig.setJdbcUrl(pgJdbcUrl);
     hikariConfig.setUsername(pgJdbcUser);
     hikariConfig.setPassword(pgJdbcPassword);
@@ -185,38 +179,25 @@ public class Main {
     LOG.info("Launching HTTP server");
     final var jettyThreadPool = new QueuedThreadPool();
     jettyThreadPool.setName("jetty");
-    final var jettyThreadPoolStatisctics
-            = new QueuedThreadPoolStatisticsCollector(jettyThreadPool, jettyThreadPool.getName());
-    jettyThreadPoolStatisctics.register();
 
     final var jettyServer = new Server(jettyThreadPool);
     final var jettyConnector = new ServerConnector(jettyServer);
     jettyConnector.setPort(httpPort);
     jettyServer.addConnector(jettyConnector);
-    final var jettyHandlers = new HandlerCollection();
 
     // Setup the application endpoint
-    final var fridgeServletContextHandler = new ServletContextHandler(null, "/fridge");
+    final var fridgeServletContextHandler = new ServletContextHandler("/fridge");
     final var fridgeServlet = new FridgeApplication(fridgeDao, validator, jsonBuilderFactory);
     final var fridgeErrorHandler = new FridgeErrorHandler(jsonBuilderFactory);
     final var fridgeServletHolder = new ServletHolder(fridgeServlet);
     fridgeServletContextHandler.addServlet(fridgeServletHolder, "/");
     fridgeServletContextHandler.setErrorHandler(fridgeErrorHandler);
-    jettyHandlers.addHandler(fridgeServletContextHandler);
 
     // Setup the metrics endpoint
-    final var metricsServletContext = new ServletContextHandler(null, "/metrics");
-    metricsServletContext.addServlet(MetricsServlet.class, "/");
-    jettyHandlers.addHandler(metricsServletContext);
+    final var metricsServletContext = new ServletContextHandler("/metrics");
+    metricsServletContext.addServlet(PrometheusMetricsServlet.class, "/");
 
-    jettyServer.setHandler(jettyHandlers);
-
-    // Setup the Jetty metrics
-    final var statisticsHandler = new StatisticsHandler();
-    statisticsHandler.setHandler(jettyServer.getHandler());
-    jettyServer.setHandler(statisticsHandler);
-    final var jettyStatisticsCollector = new JettyStatisticsCollector(statisticsHandler);
-    jettyStatisticsCollector.register();
+    jettyServer.setHandler(new ContextHandlerCollection(fridgeServletContextHandler, metricsServletContext));
 
     // Register JVM shutdown hook
     Runtime.getRuntime().addShutdownHook(new Thread(() -> {
